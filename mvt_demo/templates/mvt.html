@@ -1,0 +1,185 @@
+{% extends "demo-base.html" %} {% block script %}
+<script type="module">
+  // maplibre-gl
+  import maplibregl from "https://esm.run/maplibre-gl@3.0.0";
+  import "https://esm.run/maplibre-gl@3.0.0/dist/maplibre-gl.css";
+
+  const map = new maplibregl.Map({
+    container: "map",
+    center: [141.3537417062527, 43.06051597336799],
+    zoom: 14,
+    attributionControl: false,
+    style: {
+      version: 8,
+      sources: {
+        "gsi-pale-raster": {
+          type: "raster",
+          tiles: ["https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"],
+          tileSize: 256,
+          minzoom: 5,
+          maxzoom: 18,
+          attribution: "地理院地図",
+        },
+        "demo-source": {
+          type: "vector",
+          tiles: [
+            "{{ request.url.scheme }}://{{ request.url.netloc }}/tiles/{z}/{x}/{y}.mvt",
+          ],
+          minzoom: 0,
+          maxzoom: 16,
+          buffer: 16,
+          attribution: "法務省登記所備付地図データ",
+        },
+      },
+      layers: [
+        {
+          id: "gsi-pale",
+          type: "raster",
+          source: "gsi-pale-raster",
+        },
+        {
+          id: "demo-polygons",
+          type: "fill",
+          source: "demo-source",
+          "source-layer": "polygons",
+          layout: {},
+          paint: {
+            "fill-color": [
+              "case",
+              ["boolean", ["feature-state", "hover"], false],
+              "red",
+              "#003355",
+            ],
+            "fill-opacity": [
+              "case",
+              ["boolean", ["feature-state", "hover"], false],
+              0.8,
+              0.6,
+            ],
+            "fill-outline-color": "transparent",
+          },
+        },
+        {
+          id: "demo-points",
+          type: "circle",
+          source: "demo-source",
+          "source-layer": "polygons",
+          layout: {},
+          paint: {
+            "circle-radius": 3,
+            "circle-color": "lime",
+            "circle-opacity": 0.1,
+          },
+        },
+        {
+          id: "demo-lines",
+          type: "line",
+          source: "demo-source",
+          "source-layer": "polygons",
+          layout: {},
+          paint: {
+            "line-color": "yellow",
+            "line-width": 1,
+            "line-opacity": 0.5,
+          },
+        },
+        {
+          id: "demo-text-lines-outline",
+          type: "line",
+          source: "demo-source",
+          "source-layer": "texts",
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
+          paint: {
+            "line-color": "white",
+            "line-width": 8,
+            "line-opacity": 0.9,
+          },
+        },
+        {
+          id: "demo-text-lines",
+          type: "line",
+          source: "demo-source",
+          "source-layer": "texts",
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
+          paint: {
+            "line-color": "red",
+            "line-width": 2.5,
+            "line-opacity": 0.9,
+          },
+        },
+      ],
+    },
+  });
+  map.addControl(new maplibregl.AttributionControl(), "top-left");
+
+  // Show popup and change style on hover
+  const popup = new maplibregl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+  });
+  function updateStopPopup(props) {
+    popup.setHTML(`${props.stop_name}`);
+  }
+  function updateRoutePopup(props) {
+    popup.setHTML(`${props.route_name}`);
+  }
+
+  let hoveredIds = [];
+  map.on("mousemove", (e) => {
+    // Reset the previous hover state
+    hoveredIds.forEach((id) => {
+      map.setFeatureState(
+        {
+          source: "demo-source",
+          sourceLayer: "polygons",
+          id,
+        },
+        { hover: false }
+      );
+    });
+    hoveredIds = [];
+
+    // Get the feature under the mouse pointer
+    const features = map.queryRenderedFeatures(e.point, {
+      layers: ["demo-polygons"],
+    });
+    const names = [];
+    features.forEach((feature) => {
+      if (feature.id) {
+        const level1Name = feature.properties["市区町村名"] || "";
+        const level2Name = feature.properties["大字名"] || "";
+        const level3Name = feature.properties["小字名"] || "";
+        const level4Name = feature.properties["地番"] || "";
+        names.push(`${level1Name}${level2Name}${level3Name}${level4Name}`);
+        hoveredIds.push(feature.id);
+      }
+    });
+
+    map.getCanvas().style.cursor = features.length ? "crosshair" : "";
+
+    if (names.length) {
+      // Set a new hover state
+      hoveredIds.forEach((id) => {
+        console.log(id);
+        map.setFeatureState(
+          {
+            source: "demo-source",
+            sourceLayer: "polygons",
+            id,
+          },
+          { hover: true }
+        );
+      });
+      popup.setLngLat(e.lngLat).setHTML(names.join("<br>")).addTo(map);
+    } else {
+      popup.remove();
+    }
+  });
+</script>
+{% endblock %}

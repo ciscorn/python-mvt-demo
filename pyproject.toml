@@ -1,0 +1,64 @@
+[tool.poetry]
+name = "python-mvt-demo"
+version = "0.0.0"
+description = ""
+authors = ["Taku Fukada <naninunenor@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "mvt_demo" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = {extras = ["all"], version = "^0.95.2"}
+shapely = "^2.0.1"
+protobuf = "^4.23.2"
+geopandas = "^0.13.0"
+pyogrio = "^0.6.0"
+hershey-fonts = "^2.1.0"
+gunicorn = "^20.1.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.3.0"
+ruff = "^0.0.270"
+pytest = "^7.3"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.21.0"
+pyright = "^1.1"
+pytest-github-actions-annotate-failures = "^0.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+select = [
+    "F",
+    "E",
+    "W",
+    "B",
+    "N",
+    "UP",
+    "C90",
+    "C4",
+    "DTZ",
+    "PIE",
+    "PT",
+    "Q",
+    "SIM",
+    "RUF",
+]
+ignore = ["E501", "B008", "N815"]
+target-version = "py311"
+
+[tool.pyright]
+typeCheckingMode = "basic"
+executionEnvironments = [{ root = "test", extraPaths = ["."] }]
+exclude = ["**/__pycache__", ".venv/**"]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = ["--import-mode=importlib"]
+
+[tool.coverage.run]
+concurrency = ['greenlet', 'thread']
+source = ['mvt_demo']
+omit = []

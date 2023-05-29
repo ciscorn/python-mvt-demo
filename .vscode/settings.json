@@ -1,0 +1,19 @@
+{
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": true,
+    "source.organizeImports": true
+  },
+  "files.exclude": {
+    "**/.ruff_cache": true
+  },
+  "python.testing.pytestEnabled": true,
+  // force disabling of legacy plugins
+  "python.linting.enabled": false,
+  "python.linting.flake8Enabled": false,
+  "python.linting.pylintEnabled": false,
+  "python.formatting.provider": "none"
+}
