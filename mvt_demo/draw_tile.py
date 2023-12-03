@@ -1,11 +1,12 @@
 import time
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
 from mvt_demo.mvt import vector_tile_pb2 as pb
 from mvt_demo.projection import xyz_to_webmercator_bbox
 
-from .datasource import font, sapporo
+from .datasource import font, logo, sapporo
 
 # MVTのジオメトリで使われるコマンドID
 GEOM_COMMAND_MOVE_TO = 1
@@ -14,6 +15,8 @@ GEOM_COMMAND_CLOSE_PATH = 7
 
 GEOM_COMMAND_MOVE_TO_WITH_COUNT1 = 1 << 3 | GEOM_COMMAND_MOVE_TO
 GEOM_COMMAND_CLOSE_PATH_WITH_COUNT1 = 1 << 3 | GEOM_COMMAND_CLOSE_PATH
+
+JST = timezone(timedelta(hours=+9), "JST")
 
 
 class TagsEncoder:
@@ -129,7 +132,7 @@ class GeometryEncoder:
 
 def generate_mvt_tile(
     *, z: int, x: int, y: int, extent: int = 4096, buffer: int = 64
-) -> bytes | None:
+) -> tuple[bytes | None, float]:
     """
     指定されたXYZのベクタータイル (MVT) を生成する
     """
@@ -137,7 +140,7 @@ def generate_mvt_tile(
     geom_encoder = GeometryEncoder(extent=extent)
     tags_encoder = TagsEncoder()
     bbox = xyz_to_webmercator_bbox(x=x, y=y, z=z)
-    log_texts = []
+    log_texts = [f"{z}/{x}/{y}"]
 
     t = time.time()
     features = []
@@ -165,26 +168,31 @@ def generate_mvt_tile(
                 geometry=geom_encoder.geom,
             )
         )
+    log_texts.append(datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S"))
     log_texts.append(f"{len(features)} features.")
-    log_texts.append(f"Render geoms: {(time.time() - t) * 1000 : .0f} [ms]")
+    render_time = (time.time() - t) * 1000
+    log_texts.append(f"Render geoms: {render_time : .0f} [ms]")
 
-    if not features:
-        return None
+    # Polygon Layer
+    layers = []
+    if features:
+        layers.append(
+            pb.Tile.Layer(
+                version=2,
+                name="polygons",
+                keys=tags_encoder.keys,
+                values=tags_encoder.values,
+                features=features,
+                extent=extent,
+            )
+        )
 
-    polygon_layer = pb.Tile.Layer(
-        version=2,
-        name="polygons",
-        keys=tags_encoder.keys,
-        values=tags_encoder.values,
-        features=features,
-        extent=extent,
-    )
-
+    # Text Layer
     features = []
     for i, text in enumerate(log_texts):
         geom_encoder.reset()
         for stroke in font.get_strokes(text):
-            stroke += np.array([0.01, 0.03 + 0.04 * i])
+            stroke += np.array([0.01, 0.04 + 0.05 * i])
             geom_encoder.draw_linestring(stroke)
         features.append(
             pb.Tile.Feature(
@@ -193,19 +201,42 @@ def generate_mvt_tile(
                 geometry=geom_encoder.geom,
             )
         )
-    text_layer = pb.Tile.Layer(
-        version=2,
-        name="texts",
-        keys=[],
-        values=[],
-        features=features,
-        extent=extent,
+    layers.append(
+        pb.Tile.Layer(
+            version=2,
+            name="texts",
+            keys=[],
+            values=[],
+            features=features,
+            extent=extent,
+        )
     )
 
-    tile = pb.Tile(layers=[polygon_layer, text_layer])
+    if render_time < 50:
+        points = logo.get_points(sigma=1 / (1 << z))
+        geom_encoder.reset()
+        geom_encoder.draw_points(points)
+        layers.append(
+            pb.Tile.Layer(
+                version=2,
+                name="points",
+                keys=[],
+                values=[],
+                features=[
+                    pb.Tile.Feature(
+                        tags=[],
+                        type=pb.Tile.POINT,
+                        geometry=geom_encoder.geom,
+                    )
+                ],
+                extent=extent,
+            )
+        )
+
+    tile = pb.Tile(layers=layers)
 
     t = time.time()
     serialized = tile.SerializeToString()
     print(f"Serialize to MVT: {(time.time() - t) * 1000 : .3f} [ms]")
 
-    return serialized
+    return (serialized, render_time)

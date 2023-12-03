@@ -29,8 +29,11 @@ def home(request: Request) -> Response:
     responses={200: {"content": {"application/vnd.mapbox-vector-tile": {}}}},
 )
 async def serve_tile(z: int, x: int, y: int) -> Response:
-    serialized = generate_mvt_tile(z=z, x=x, y=y)
+    serialized, render_time = generate_mvt_tile(z=z, x=x, y=y)
     if serialized:
-        return Response(serialized)
+        headers = {}
+        if render_time < 30:
+            headers["Cache-Control"] = "max-age=1"
+        return Response(serialized, headers=headers)
     else:
         raise HTTPException(status_code=404)
